@@ -1,5 +1,6 @@
+
 # Use official Python base image
-FROM python:3.9-slim-buster as base
+FROM python:3.11-bookworm as base
 
 ENV APP_INSTALL=/app
 ENV PYTHONPATH=${APP_INSTALL}
