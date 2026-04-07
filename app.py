@@ -1,26 +1,29 @@
 from azure.monitor.opentelemetry import configure_azure_monitor
-import logging
 
-logging.basicConfig(level=logging.INFO)
+# Configure Azure Monitor telemetry collection
 configure_azure_monitor()
 
+# Now import flask after configuring Azure Monitor
 from flask import Flask, render_template, request
 from datetime import datetime, timezone
-
+import requests
+import logging
 from werkzeug.utils import redirect
 from flask_config import Config
 from data.database import initialise_database, add_order, clear_orders, count_orders, get_orders_to_display, get_queued_count, get_recently_placed_count, get_recently_processed_count
 from scheduled_jobs import initialise_scheduled_jobs
 from products import create_product_download
-import requests
 
+# Configure logging to send logs to Azure Monitor
+logging.basicConfig(level=logging.INFO)
 
-app = flask.Flask(__name__)
+# Initialize Flask app
+app = Flask(__name__)
 app.config.from_object(Config)
 
+# Initialize Database and Scheduled Jobs
 initialise_database(app)
 initialise_scheduled_jobs(app)
-
 
 @app.route("/")
 def index():
@@ -45,7 +48,6 @@ def index():
 def count():
     return { 'count': count_orders() }
 
-
 @app.route("/new", methods=["POST"])
 def new_order():
     product = request.json["product"]
@@ -54,11 +56,14 @@ def new_order():
     download = create_product_download(product)
     try:
         order = add_order(product, customer, date_placed, None, download)
+        # Log the order creation
+        logging.info(f"Added new order: {order}")
     except Exception as e:
+        # Log any error that occurs
+        logging.error(f"Error adding new order: {str(e)}")
         return str(e)
 
     return f"Added: {order}"
-
 
 @app.route("/scenario", methods=["POST"])
 def set_scenario():
@@ -73,38 +78,19 @@ def set_scenario():
     if scenario == 'Reset':
         clear_orders()
 
-    response = requests.post(
-        app.config["FINANCE_PACKAGE_URL"] + "/scenario",
-        json=scenario
-    )
-
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            app.config["FINANCE_PACKAGE_URL"] + "/scenario",
+            json=scenario
+        )
+        response.raise_for_status()
+        # Log successful response from the finance package
+        logging.info(f"Scenario response: {response.status_code} - {response.text}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to set scenario: {str(e)}")
+        return str(e)
 
     return redirect('/')
 
 if __name__ == "__main__":
     app.run()
-
-
-
-# Requests sent to the flask application will be automatically captured
-@app.route("/")
-def test():
-    return "Test flask request"
-
-
-# Exceptions that are raised within the request are automatically captured
-@app.route("/exception")
-def exception():
-    raise Exception("Hit an exception")  # pylint: disable=broad-exception-raised
-
-
-# Requests sent to this endpoint will not be tracked due to
-# flask_config configuration
-@app.route("/ignore")
-def ignore():
-    return "Request received but not tracked."
-
-
-if __name__ == "__main__":
-    app.run(host="localhost", port=8080)
