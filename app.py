@@ -73,6 +73,7 @@ def set_scenario():
         json=scenario
     )
 
+    app.logger.info("Response from endpoint: " + response.text)
 
     response.raise_for_status()
 
