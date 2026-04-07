@@ -21,7 +21,7 @@ class Order(db.Model):
     def __init__(self, product, customer, date_placed, date_processed, download):
         self.product = product
         self.customer = customer
-        self.date_placed = date_placed
+        self.date_placed = date_placed_local
         self.date_processed = date_processed
         self.status = 'Complete' if self.date_processed else 'Queued'
         self.download = download
